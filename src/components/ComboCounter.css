@@ -1,0 +1,54 @@
+.combo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  position: sticky;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.combo-number {
+  font-family: 'Inter', sans-serif;
+  font-size: 4rem;
+  font-weight: 800;
+  color: var(--text-dim);
+  line-height: 1;
+  transition: color 0.3s, text-shadow 0.3s, transform 0.1s;
+  text-align: center;
+}
+
+.combo-number.active {
+  color: var(--accent);
+  text-shadow: 0 0 20px rgba(226, 183, 20, 0.4), 0 0 40px rgba(226, 183, 20, 0.2);
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+.combo-number.pop {
+  animation: comboPopIn 0.2s ease-out;
+}
+
+.combo-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-top: 0.3rem;
+}
+
+.max-combo {
+  margin-top: 1.5rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.max-combo span {
+  color: var(--accent);
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
