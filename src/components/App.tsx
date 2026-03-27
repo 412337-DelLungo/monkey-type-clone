@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef } from "react";
 import TypingArea, { TypingAreaHandle } from "./TypingArea/TypingArea";
 import ComboCounter from "./ComboCounter/ComboCounter";
 import Particles from "./Particles/Particles";
 import Stats from "./Stats/Stats";
+import FinishScreen from "./FinishScreen/FinishScreen";
+import { useTimer } from "../hooks/useTimer";
+import { useTypingGame } from "../hooks/useTypingGame";
 import "./App.css";
-import { getRandomWords } from "../utils/wordsProvider";
 
 interface ParticleData {
   id: number;
@@ -14,36 +16,21 @@ interface ParticleData {
 }
 
 function App() {
-  const [words, setWords] = useState<string[]>([]);
-  const [completedWords, setCompletedWords] = useState<string[]>([]);
-  const [currentInput, setCurrentInput] = useState("");
-  const [started, setStarted] = useState(false);
-  const [finished, setFinished] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [combo, setCombo] = useState(0);
-  const [maxCombo, setMaxCombo] = useState(0);
-  const [particles, setParticles] = useState<ParticleData[]>([]);
-  const [shake, setShake] = useState(false);
-  const particleId = useRef(0);
-  const startTimeRef = useRef<number | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const typingAreaRef = useRef<TypingAreaHandle>(null);
+  const particleId = useRef(0);
 
-  const loadWords = useCallback(() => {
-    const selected = getRandomWords(50);
-    setWords(selected);
-  }, []);
+  // Timer
+  const { elapsed, startTimer, stopTimer, resetTimer } = useTimer();
 
-  useEffect(() => {
-    loadWords();
-  }, [loadWords]);
+  // Partículas — el padre solo "dispara", cada una se autodestruye
+  const [particles, setParticles] = useState<ParticleData[]>([]);
 
   const spawnParticles = useCallback(() => {
     const rect = typingAreaRef.current?.getCursorRect();
     if (!rect) return;
     const colors = ["#e2b714", "#f0c040", "#fff", "#ffd700", "#ffb347"];
-    const newParts: ParticleData[] = [];
     const count = 4 + Math.floor(Math.random() * 3);
+    const newParts: ParticleData[] = [];
     for (let i = 0; i < count; i++) {
       newParts.push({
         id: particleId.current++,
@@ -53,155 +40,34 @@ function App() {
       });
     }
     setParticles((prev) => [...prev, ...newParts]);
-    setTimeout(() => {
-      setParticles((prev) =>
-        prev.filter((p) => !newParts.find((np) => np.id === p.id)),
-      );
-    }, 800);
   }, []);
 
-  const currentWordIdx = completedWords.length;
+  const removeParticle = useCallback((id: number) => {
+    setParticles((prev) => prev.filter((p) => p.id !== id));
+  }, []);
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (finished || !started) return;
-
-      const printable =
-        e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
-
-      if (e.key === "Backspace" || e.key === "Tab" || e.key === " ") return;
-
-      if (!printable) return;
-
-      const word = words[currentWordIdx];
-      if (!word) return;
-
-      if (currentInput.length >= word.length) return;
-
-      const isCorrect = e.key === word[currentInput.length];
-
-      if (isCorrect) {
-        const nextInput = currentInput + e.key;
-        if (nextInput.length === word.length) {
-          setCompletedWords((prev) => [...prev, nextInput]);
-          setCurrentInput("");
-          setCombo((prev) => {
-            const next = prev + 1;
-            setMaxCombo((m) => Math.max(m, next));
-            return next;
-          });
-          spawnParticles();
-        } else {
-          setCurrentInput(nextInput);
-          setCombo((prev) => {
-            const next = prev + 1;
-            setMaxCombo((m) => Math.max(m, next));
-            return next;
-          });
-          spawnParticles();
-        }
-      } else {
-        setCombo(0);
-        setShake(true);
-        setTimeout(() => setShake(false), 200);
-      }
-    },
-    [finished, started, currentWordIdx, currentInput, words, spawnParticles],
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
-
-  useEffect(() => {
-    if (started && !finished) {
-      startTimeRef.current = Date.now();
-      timerRef.current = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - startTimeRef.current!) / 1000));
-      }, 100);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [started, finished]);
-
-  useEffect(() => {
-    if (finished && timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-  }, [finished]);
-
-  useEffect(() => {
-    if (words.length === 0) return;
-    if (completedWords.length >= words.length) {
-      setFinished(true);
-    }
-  }, [completedWords.length, words.length]);
-
-  const handleStart = () => {
-    setStarted(true);
-  };
-
-  const handleRestart = useCallback(() => {
-    setCompletedWords([]);
-    setCurrentInput("");
-    setStarted(false);
-    setFinished(false);
-    setElapsed(0);
-    setCombo(0);
-    setMaxCombo(0);
-    setParticles([]);
-    if (timerRef.current) clearInterval(timerRef.current);
-    loadWords();
-  }, [loadWords]);
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (finished && (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey))) {
-        handleRestart();
-      }
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [finished, handleRestart]);
-
-  const { correctChars, totalChars } = useMemo(() => {
-    let correct = 0;
-    let total = 0;
-
-    // 1. Contar caracteres en palabras ya completadas
-    completedWords.forEach((typed, wIdx) => {
-      const target = words[wIdx];
-      if (!target) return;
-
-      for (let c = 0; c < typed.length; c++) {
-        if (typed[c] === target[c]) correct++;
-      }
-      total += typed.length;
-    });
-
-    // 2. Contar caracteres de la palabra que estás escribiendo ahora
-    const targetWord = words[currentWordIdx];
-    if (targetWord) {
-      for (let c = 0; c < currentInput.length; c++) {
-        if (currentInput[c] === targetWord[c]) correct++;
-      }
-      total += currentInput.length;
-    }
-
-    return { correctChars: correct, totalChars: total };
-  }, [completedWords, currentInput, words, currentWordIdx]);
-
-  const wpm = useMemo(() => {
-    if (elapsed === 0) return 0;
-    return Math.round(correctChars / 5 / (elapsed / 60));
-  }, [correctChars, elapsed]);
-
-  const accuracy = useMemo(() => {
-    if (totalChars === 0) return 100;
-    return Math.round((correctChars / totalChars) * 100);
-  }, [correctChars, totalChars]);
+  // Juego de escritura
+  const {
+    words,
+    completedWords,
+    currentInput,
+    currentWordIdx,
+    started,
+    finished,
+    combo,
+    maxCombo,
+    shake,
+    wpm,
+    accuracy,
+    handleStart,
+    handleRestart,
+  } = useTypingGame({
+    elapsed,
+    onCorrectChar: spawnParticles,
+    onStart: startTimer,
+    onStop: stopTimer,
+    onReset: resetTimer,
+  });
 
   return (
     <div className="app">
@@ -236,34 +102,23 @@ function App() {
         <ComboCounter combo={combo} maxCombo={maxCombo} />
 
         {particles.map((p) => (
-          <Particles key={p.id} x={p.x} y={p.y} color={p.color} />
+          <Particles
+            key={p.id}
+            x={p.x}
+            y={p.y}
+            color={p.color}
+            onDone={() => removeParticle(p.id)}
+          />
         ))}
 
         {finished && (
-          <div className="finish-overlay">
-            <h2>Completado!</h2>
-            <div className="finish-stats">
-              <div className="finish-stat">
-                <div className="value">{wpm}</div>
-                <div className="label">WPM</div>
-              </div>
-              <div className="finish-stat">
-                <div className="value">{accuracy}%</div>
-                <div className="label">Precision</div>
-              </div>
-              <div className="finish-stat">
-                <div className="value">{elapsed}s</div>
-                <div className="label">Tiempo</div>
-              </div>
-              <div className="finish-stat">
-                <div className="value">{maxCombo}</div>
-                <div className="label">Max Combo</div>
-              </div>
-            </div>
-            <button className="restart-btn" onClick={handleRestart}>
-              Reiniciar
-            </button>
-          </div>
+          <FinishScreen
+            wpm={wpm}
+            accuracy={accuracy}
+            time={elapsed}
+            maxCombo={maxCombo}
+            onRestart={handleRestart}
+          />
         )}
       </div>
     </div>
