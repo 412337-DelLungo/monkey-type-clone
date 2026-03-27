@@ -11,6 +11,20 @@
   --cursor: #e2b714;
 }
 
+/* Light theme overrides */
+[data-theme="light"] {
+  --bg: #f5f5f5;
+  --bg-secondary: #e8e8e8;
+  --text: #1a1a1a;
+  --text-dim: #8a8a8a;
+  --correct: #2a2a2a;
+  --incorrect: #c41e3a;
+  --missed: #c0c0c0;
+  --accent: #d4a017;
+  --combo-glow: #d4a017;
+  --cursor: #d4a017;
+}
+
 * {
   margin: 0;
   padding: 0;
