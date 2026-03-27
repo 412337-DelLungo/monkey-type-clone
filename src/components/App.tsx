@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import TypingArea, { TypingAreaHandle } from './TypingArea';
-import ComboCounter from './ComboCounter';
-import Particles from './Particles';
-import Stats from './Stats';
-import './App.css';
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import TypingArea, { TypingAreaHandle } from "./TypingArea/TypingArea";
+import ComboCounter from "./ComboCounter/ComboCounter";
+import Particles from "./Particles/Particles";
+import Stats from "./Stats/Stats";
+import "./App.css";
+import { getRandomWords } from "../utils/wordsProvider";
 
 interface ParticleData {
   id: number;
@@ -15,7 +16,7 @@ interface ParticleData {
 function App() {
   const [words, setWords] = useState<string[]>([]);
   const [completedWords, setCompletedWords] = useState<string[]>([]);
-  const [currentInput, setCurrentInput] = useState('');
+  const [currentInput, setCurrentInput] = useState("");
   const [started, setStarted] = useState(false);
   const [finished, setFinished] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -24,49 +25,23 @@ function App() {
   const [particles, setParticles] = useState<ParticleData[]>([]);
   const [shake, setShake] = useState(false);
   const particleId = useRef(0);
+  const startTimeRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const typingAreaRef = useRef<TypingAreaHandle>(null);
 
-  const WORD_LIST = [
-    "el","la","los","las","un","una","de","del","al","que","y","en","es",
-    "por","para","con","sin","sobre","entre","este","esta","esto","como",
-    "pero","mas","porque","cuando","donde","todo","tener","hacer","ir",
-    "ser","estar","poder","decir","ver","dar","saber","querer","llegar",
-    "casa","tiempo","dia","noche","ahora","siempre","nunca","lugar","forma",
-    "parte","cosa","mundo","vida","gente","persona","trabajo","ciudad",
-    "pais","agua","aire","fuego","tierra","sol","luna","grande","pequeno",
-    "nuevo","viejo","bueno","malo","largo","corto","alto","bajo","rapido",
-    "lento","facil","dificil","ordenador","teclado","pantalla","raton",
-    "ventana","programa","dato","informacion","sistema","red","internet",
-    "texto","letra","palabra","numero","resultado","problema","solucion",
-    "idea","concepto","practica","libro","musica","foto","video","juego",
-    "luz","sombra","color","blanco","negro","rojo","azul","verde","amarillo",
-    "lluvia","viento","nube","arbol","flor","planta","perro","gato","pajaro",
-    "nio","amigo","familia","trabajador","estudiante","profesor","medico",
-    "comer","beber","dormir","correr","saltar","jugar","leer","escribir",
-    "hablar","escuchar","mirar","tocar","oler","sentir","pensar","crear",
-    "aprender","enseñar","preguntar","responder","buscar","encontrar",
-    "empezar","terminar","continuar","parar","cambiar","mejorar","crecer"
-  ];
-
   const loadWords = useCallback(() => {
-    const shuffled = [...WORD_LIST].sort(() => Math.random() - 0.5);
-    const selected: string[] = [];
-    while (selected.length < 50) {
-      for (const w of shuffled) {
-        if (selected.length >= 50) break;
-        selected.push(w);
-      }
-    }
+    const selected = getRandomWords(50);
     setWords(selected);
   }, []);
 
-  useEffect(() => { loadWords(); }, [loadWords]);
+  useEffect(() => {
+    loadWords();
+  }, [loadWords]);
 
   const spawnParticles = useCallback(() => {
     const rect = typingAreaRef.current?.getCursorRect();
     if (!rect) return;
-    const colors = ['#e2b714', '#f0c040', '#fff', '#ffd700', '#ffb347'];
+    const colors = ["#e2b714", "#f0c040", "#fff", "#ffd700", "#ffb347"];
     const newParts: ParticleData[] = [];
     const count = 4 + Math.floor(Math.random() * 3);
     for (let i = 0; i < count; i++) {
@@ -77,67 +52,73 @@ function App() {
         color: colors[Math.floor(Math.random() * colors.length)],
       });
     }
-    setParticles(prev => [...prev, ...newParts]);
+    setParticles((prev) => [...prev, ...newParts]);
     setTimeout(() => {
-      setParticles(prev => prev.filter(p => !newParts.find(np => np.id === p.id)));
+      setParticles((prev) =>
+        prev.filter((p) => !newParts.find((np) => np.id === p.id)),
+      );
     }, 800);
   }, []);
 
   const currentWordIdx = completedWords.length;
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (finished || !started) return;
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (finished || !started) return;
 
-    const printable = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+      const printable =
+        e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
 
-    if (e.key === 'Backspace' || e.key === 'Tab' || e.key === ' ') return;
+      if (e.key === "Backspace" || e.key === "Tab" || e.key === " ") return;
 
-    if (!printable) return;
+      if (!printable) return;
 
-    const word = words[currentWordIdx];
-    if (!word) return;
+      const word = words[currentWordIdx];
+      if (!word) return;
 
-    if (currentInput.length >= word.length) return;
+      if (currentInput.length >= word.length) return;
 
-    const isCorrect = e.key === word[currentInput.length];
+      const isCorrect = e.key === word[currentInput.length];
 
-    if (isCorrect) {
-      const nextInput = currentInput + e.key;
-      if (nextInput.length === word.length) {
-        setCompletedWords(prev => [...prev, nextInput]);
-        setCurrentInput('');
-        setCombo(prev => {
-          const next = prev + 1;
-          setMaxCombo(m => Math.max(m, next));
-          return next;
-        });
-        spawnParticles();
+      if (isCorrect) {
+        const nextInput = currentInput + e.key;
+        if (nextInput.length === word.length) {
+          setCompletedWords((prev) => [...prev, nextInput]);
+          setCurrentInput("");
+          setCombo((prev) => {
+            const next = prev + 1;
+            setMaxCombo((m) => Math.max(m, next));
+            return next;
+          });
+          spawnParticles();
+        } else {
+          setCurrentInput(nextInput);
+          setCombo((prev) => {
+            const next = prev + 1;
+            setMaxCombo((m) => Math.max(m, next));
+            return next;
+          });
+          spawnParticles();
+        }
       } else {
-        setCurrentInput(nextInput);
-        setCombo(prev => {
-          const next = prev + 1;
-          setMaxCombo(m => Math.max(m, next));
-          return next;
-        });
-        spawnParticles();
+        setCombo(0);
+        setShake(true);
+        setTimeout(() => setShake(false), 200);
       }
-    } else {
-      setCombo(0);
-      setShake(true);
-      setTimeout(() => setShake(false), 200);
-    }
-  }, [finished, started, currentWordIdx, currentInput, words, spawnParticles]);
+    },
+    [finished, started, currentWordIdx, currentInput, words, spawnParticles],
+  );
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
   useEffect(() => {
     if (started && !finished) {
-      const startTime = Date.now();
+      startTimeRef.current = Date.now();
       timerRef.current = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - startTime) / 1000));
+        setElapsed(Math.floor((Date.now() - startTimeRef.current!) / 1000));
       }, 100);
     }
     return () => {
@@ -162,9 +143,9 @@ function App() {
     setStarted(true);
   };
 
-  const handleRestart = () => {
+  const handleRestart = useCallback(() => {
     setCompletedWords([]);
-    setCurrentInput('');
+    setCurrentInput("");
     setStarted(false);
     setFinished(false);
     setElapsed(0);
@@ -173,34 +154,54 @@ function App() {
     setParticles([]);
     if (timerRef.current) clearInterval(timerRef.current);
     loadWords();
-  };
+  }, [loadWords]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (finished && (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey))) {
+      if (finished && (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey))) {
         handleRestart();
       }
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
   }, [finished, handleRestart]);
 
-  const totalChars = completedWords.join('').length + currentInput.length;
-  let correctChars = 0;
-  for (let w = 0; w < completedWords.length; w++) {
-    const target = words[w];
-    const typed = completedWords[w];
-    for (let c = 0; c < target.length; c++) {
-      if (typed[c] === target[c]) correctChars++;
-    }
-  }
-  const targetWord = words[currentWordIdx] || '';
-  for (let c = 0; c < currentInput.length; c++) {
-    if (currentInput[c] === targetWord[c]) correctChars++;
-  }
+  const { correctChars, totalChars } = useMemo(() => {
+    let correct = 0;
+    let total = 0;
 
-  const wpm = elapsed > 0 ? Math.round((correctChars / 5) / (elapsed / 60)) : 0;
-  const accuracy = totalChars > 0 ? Math.round((correctChars / totalChars) * 100) : 100;
+    // 1. Contar caracteres en palabras ya completadas
+    completedWords.forEach((typed, wIdx) => {
+      const target = words[wIdx];
+      if (!target) return;
+
+      for (let c = 0; c < typed.length; c++) {
+        if (typed[c] === target[c]) correct++;
+      }
+      total += typed.length;
+    });
+
+    // 2. Contar caracteres de la palabra que estás escribiendo ahora
+    const targetWord = words[currentWordIdx];
+    if (targetWord) {
+      for (let c = 0; c < currentInput.length; c++) {
+        if (currentInput[c] === targetWord[c]) correct++;
+      }
+      total += currentInput.length;
+    }
+
+    return { correctChars: correct, totalChars: total };
+  }, [completedWords, currentInput, words, currentWordIdx]);
+
+  const wpm = useMemo(() => {
+    if (elapsed === 0) return 0;
+    return Math.round(correctChars / 5 / (elapsed / 60));
+  }, [correctChars, elapsed]);
+
+  const accuracy = useMemo(() => {
+    if (totalChars === 0) return 100;
+    return Math.round((correctChars / totalChars) * 100);
+  }, [correctChars, totalChars]);
 
   return (
     <div className="app">
@@ -227,14 +228,14 @@ function App() {
             </button>
           )}
 
-          <p className={`restart-hint ${finished ? 'visible' : ''}`}>
+          <p className={`restart-hint ${finished ? "visible" : ""}`}>
             Presiona <kbd>Tab</kbd> + <kbd>Enter</kbd> para reiniciar
           </p>
         </div>
 
         <ComboCounter combo={combo} maxCombo={maxCombo} />
 
-        {particles.map(p => (
+        {particles.map((p) => (
           <Particles key={p.id} x={p.x} y={p.y} color={p.color} />
         ))}
 
